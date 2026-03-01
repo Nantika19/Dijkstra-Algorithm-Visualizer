@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dijkstra Visualizer</title>
+  <script src="https://cdn.jsdelivr.net/npm/vis-network@10.0.2/standalone/umd/vis-network.min.js"></script>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: #f4f7fa; margin: 0; padding: 20px; }
+    h1 { text-align: center; color: #1e3a8a; margin-bottom: 20px; }
+    .container { display: flex; gap: 20px; max-width: 1400px; margin: 0 auto; flex-wrap: wrap; }
+    .controls { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 280px; }
+    .graph-area { flex: 1; min-width: 700px; background: white; border-radius: 12px; padding: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    #mynetwork { height: 620px; border: 2px solid #e0e7ff; border-radius: 8px; }
+    button { padding: 10px 16px; margin: 6px 0; width: 100%; border: none; border-radius: 6px; cursor: pointer; font-size: 15px; }
+    button.primary { background: #2563eb; color: white; }
+    button.secondary { background: #64748b; color: white; }
+    button.run { background: #16a34a; color: white; font-size: 18px; padding: 14px; }
+    input { width: 100%; padding: 8px; margin: 6px 0; border: 1px solid #ccc; border-radius: 6px; }
+    .result { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-top: 20px; width: 100%; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+    th { background: #f1f5f9; }
+  </style>
+</head>
+<body>
+
+<h1>Dijkstra Algorithm Visualizer</h1>
+
+<div class="container">
+  <div class="controls">
+    <h2>จัดการกราฟ</h2>
+    <button class="primary" onclick="addNode()">+ เพิ่ม Node</button>
+    <button class="primary" onclick="addEdge()">+ เพิ่ม Edge</button>
+    <button class="secondary" onclick="randomGraph()">สร้างกราฟสุ่ม (ถึง H)</button>
+    <button class="secondary" onclick="clearGraph()">ล้างกราฟ</button>
+
+    <hr>
+    <label><b>จาก Node</b></label>
+    <input id="fromNode" placeholder="เช่น a">
+    <label><b>ถึง Node</b></label>
+    <input id="toNode" placeholder="เช่น b">
+    <label><b>น้ำหนัก</b></label>
+    <input id="weight" type="number" value="5" min="1">
+
+    <hr>
+    <label><b>จุดเริ่มต้น</b></label>
+    <input id="startNode" value="a" style="font-size:18px; text-align:center;">
+    <label><b>จุดสิ้นสุด</b></label>
+    <input id="endNode" value="d" style="font-size:18px; text-align:center;">
+    <button class="run" onclick="runDijkstra()">▶️ รัน Dijkstra</button>
+    <button class="secondary" onclick="resetHighlight()">รีเซ็ตสี</button>
+  </div>
+
+  <div class="graph-area">
+    <div id="mynetwork"></div>
+  </div>
+</div>
+
+<div class="result">
+  <h2>ผลลัพธ์</h2>
+  <div id="output" style="font-family:Consolas,monospace; background:#f8fafc; padding:15px; border-radius:8px; min-height:100px;"></div>
+</div>
+
+<script>
+let nodes, edges, network;
+
+function initNetwork() {
+  nodes = new vis.DataSet([]);
+  edges = new vis.DataSet([]);
+
+  const container = document.getElementById('mynetwork');
+  const data = { nodes: nodes, edges: edges };
+  const options = {
+    nodes: {
+      shape: 'circle',
+      size: 28,
+      font: {
+        size: 18,
+        face: 'arial',
+        color: '#343434',
+        bold: { mod: 'bold' }
+      }
+    },
+    edges: {
+      font: { size: 14, align: 'middle' },
+      smooth: true
+    },
+    physics: {
+      enabled: true,
+      stabilization: { enabled: true, iterations: 100 }
+    },
+    interaction: { dragNodes: true, zoomView: true }
+  };
+
+  network = new vis.Network(container, data, options);
+
+  network.once("stabilizationIterationsDone", () => {
+    network.setOptions({ physics: false });
+  });
+}
+
+function addNode() {
+  const label = prompt("ชื่อ Node ใหม่:", "x");
+  if (!label) return;
+  const id = label.trim().toLowerCase();
+  if (nodes.get(id)) return alert("Node นี้มีแล้ว!");
+  nodes.add({ id, label: id.toUpperCase(), color: '#3b82f6' });
+  network.redraw();
+  network.fit();
+}
+
+function addEdge() {
+  let from = document.getElementById('fromNode').value.trim().toLowerCase();
+  let to = document.getElementById('toNode').value.trim().toLowerCase();
+  const weight = parseInt(document.getElementById('weight').value);
+
+  if (!from || !to || isNaN(weight) || weight < 1) return alert("กรอกให้ครบ น้ำหนัก ≥ 1");
+  if (from === to) return alert("ห้ามเชื่อมตัวเอง");
+
+  const edgeId = [from, to].sort().join('-');
+  if (edges.get(edgeId)) return alert("Edge นี้มีแล้ว!");
+
+  edges.add({
+    id: edgeId,
+    from,
+    to,
+    label: weight.toString(),
+    weight,
+    color: { color: '#64748b' },
+    width: 2
+  });
+  network.redraw();
+  network.fit();
+}
+
+function randomGraph() {
+  clearGraph();
+  network.stopSimulation();
+
+  // สุ่ม 4-8 โหนด (a ถึง h)
+  const num = Math.floor(Math.random() * 5) + 4;
+  const labels = [];
+
+  for (let i = 0; i < num; i++) {
+    const lbl = String.fromCharCode(97 + i);
+    nodes.add({ id: lbl, label: lbl.toUpperCase(), color: '#3b82f6' });
+    labels.push(lbl);
+  }
+
+  for (let i = 0; i < num * 1.4; i++) {
+    const a = labels[Math.floor(Math.random() * num)];
+    const b = labels[Math.floor(Math.random() * num)];
+    if (a === b) continue;
+    const w = Math.floor(Math.random() * 10) + 1;
+    const edgeId = [a, b].sort().join('-');
+    if (!edges.get(edgeId)) {
+      edges.add({
+        id: edgeId,
+        from: a,
+        to: b,
+        label: w.toString(),
+        weight: w,
+        color: { color: '#64748b' },
+        width: 2
+      });
+    }
+  }
+
+  setTimeout(() => {
+    network.stabilize(50);
+    network.fit();
+    network.redraw();
+    alert(`สุ่มกราฟสำเร็จ! มี ${num} โหนด (สูงสุดถึง ${labels[labels.length-1].toUpperCase()})`);
+  }, 300);
+}
+
+function clearGraph() {
+  nodes.clear();
+  edges.clear();
+  document.getElementById('output').innerHTML = '';
+  network.redraw();
+}
+
+function dijkstra(start) {
+  const dist = {};
+  const prev = {};
+  const unvisited = new Set();
+
+  nodes.forEach(n => {
+    dist[n.id] = Infinity;
+    prev[n.id] = null;
+    unvisited.add(n.id);
+  });
+
+  if (!dist[start]) return null;
+  dist[start] = 0;
+
+  while (unvisited.size > 0) {
+    let u = null, min = Infinity;
+    unvisited.forEach(v => {
+      if (dist[v] < min) { min = dist[v]; u = v; }
+    });
+    if (u === null) break;
+    unvisited.delete(u);
+
+    edges.forEach(e => {
+      if (e.from === u || e.to === u) {
+        const neigh = (e.from === u) ? e.to : e.from;
+        const alt = dist[u] + e.weight;
+        if (alt < dist[neigh]) {
+          dist[neigh] = alt;
+          prev[neigh] = u;
+        }
+      }
+    });
+  }
+
+  const result = {};
+  Object.keys(dist).forEach(node => {
+    if (dist[node] === Infinity) {
+      result[node] = { dist: "∞", path: [] };
+      return;
+    }
+    let path = [], curr = node;
+    while (curr) {
+      path.unshift(curr);
+      curr = prev[curr];
+    }
+    result[node] = { dist: dist[node], path: path[0] === start ? path : [] };
+  });
+  return result;
+}
+
+function runDijkstra() {
+  let start = document.getElementById('startNode').value.trim().toLowerCase();
+  let end = document.getElementById('endNode').value.trim().toLowerCase();
+
+  if (!start || !end) return alert("กรุณาใส่ทั้งจุดเริ่มต้นและจุดสิ้นสุด");
+  if (start === end) return alert("จุดเริ่มต้นและจุดสิ้นสุดต้องไม่เหมือนกัน");
+
+  const result = dijkstra(start);
+  if (!result) return alert("จุดเริ่มต้นไม่มีในกราฟ");
+
+  // แสดงตารางผลลัพธ์ทั้งหมด
+  let html = `<b>จุดเริ่มต้น: ${start.toUpperCase()} → จุดสิ้นสุด: ${end.toUpperCase()}</b><br><br>`;
+  html += `<table><tr><th>ถึงโหนด</th><th>ระยะทาง</th><th>เส้นทาง</th></tr>`;
+  Object.keys(result).sort().forEach(node => {
+    const r = result[node];
+    const pathStr = r.path.length ? r.path.map(p => p.toUpperCase()).join(" → ") : "ไม่ถึง";
+    html += `<tr><td><b>${node.toUpperCase()}</b></td><td>${r.dist}</td><td>${pathStr}</td></tr>`;
+  });
+  html += `</table>`;
+  document.getElementById('output').innerHTML = html;
+
+  resetHighlight();
+
+  // ไฮไลต์เฉพาะเส้นทางไปยังจุดสิ้นสุด
+  if (result[end] && result[end].path.length >= 2) {
+    const path = result[end].path;
+    for (let i = 0; i < path.length - 1; i++) {
+      const f = path[i];
+      const t = path[i + 1];
+      const edge = edges.get({
+        filter: e => (e.from === f && e.to === t) || (e.from === t && e.to === f)
+      })[0];
+      if (edge) {
+        edges.update({ id: edge.id, color: { color: '#ef4444' }, width: 5 });
+      }
+    }
+    nodes.update({ id: start, color: '#eab308' }); // เหลือง = เริ่มต้น
+    nodes.update({ id: end, color: '#22c55e' });   // เขียว = สิ้นสุด
+    alert(`เส้นทางสั้นสุดไปยัง ${end.toUpperCase()}: ${result[end].dist} หน่วย`);
+  } else {
+    alert(`ไม่มีเส้นทางจาก ${start.toUpperCase()} ไปยัง ${end.toUpperCase()}`);
+  }
+
+  network.redraw();
+}
+
+function resetHighlight() {
+  nodes.forEach(n => nodes.update({ id: n.id, color: '#3b82f6' }));
+  edges.forEach(e => edges.update({ id: e.id, color: { color: '#64748b' }, width: 2 }));
+  network.redraw();
+}
+
+// เริ่มต้น
+initNetwork();
+alert("พร้อมใช้งาน!\nเพิ่มจุดสิ้นสุดในช่องด้านล่าง แล้วกดรัน Dijkstra ได้เลย");
+</script>
+
+</body>
+</html>
